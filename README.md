@@ -1,2 +1,0 @@
-# Creact
- mini-react clone
