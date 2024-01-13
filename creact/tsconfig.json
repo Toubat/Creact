@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "jsx": "react",
     "target": "ES2020",
     "useDefineForClassFields": true,
     "module": "ESNext",
@@ -19,5 +20,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "core", "App.ts", "main.ts"]
+  "include": ["src", "core", "App.tsx", "main.tsx"]
 }

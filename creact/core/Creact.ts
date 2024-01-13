@@ -22,7 +22,7 @@ export function createTextNode(text: string): CreactNode {
 
 export function createElement(
   type: string,
-  props: Record<string, any>,
+  props: Record<string, any> | null,
   ...children: (CreactNode | string)[]
 ): CreactNode {
   return {

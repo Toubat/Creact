@@ -1,4 +1,4 @@
-import { CreactNode, render } from "./Creact";
+import { CreactNode, render } from "./creact";
 
 const CreactDOM = {
   createRoot(container: HTMLElement) {
