@@ -42,6 +42,8 @@ export function render(el: CreactNode, container: HTMLElement) {
 
   Object.keys(el.props).forEach((key) => {
     if (key === "children") return;
+
+    // @ts-ignore
     dom[key] = el.props[key];
   });
 
