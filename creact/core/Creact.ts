@@ -79,8 +79,7 @@ function performUnitOfWork(fiber: FiberNode): FiberNode | undefined {
   updateProps(dom, fiber.props);
 
   if (fiber.parent) {
-    if (!fiber.parent.dom) throw new Error("No parent dom");
-    (fiber.parent.dom as HTMLElement).append(dom);
+    (fiber.parent?.dom as HTMLElement).append(dom);
   }
 
   let prevUnitOfWork: FiberNode | undefined = undefined;
@@ -93,10 +92,8 @@ function performUnitOfWork(fiber: FiberNode): FiberNode | undefined {
 
     if (idx === 0) {
       fiber.child = unitOfWork;
-    } else if (!prevUnitOfWork) {
-      throw new Error("Previous unit of work is undefined");
     } else {
-      prevUnitOfWork.sibling = unitOfWork;
+      prevUnitOfWork!.sibling = unitOfWork;
     }
 
     if (idx === fiber.props.children.length - 1) {
