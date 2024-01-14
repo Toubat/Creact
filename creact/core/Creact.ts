@@ -8,11 +8,25 @@ export type CreactNode = {
   props: CreactProps;
 };
 
-export const TEXT_ELEMENT = "TEXT_ELEMENT";
+export enum NodeTypes {
+  Text = "TEXT_ELEMENT",
+}
 
-export function createTextNode(text: string): CreactNode {
+type FiberNode = {
+  type: string;
+  props: CreactProps;
+  parent?: FiberNode;
+  child?: FiberNode;
+  sibling?: FiberNode;
+  uncle?: FiberNode;
+  dom?: HTMLElement | Text;
+};
+
+let nextUnitOfWork: FiberNode | undefined = undefined;
+
+function createTextNode(text: string): CreactNode {
   return {
-    type: TEXT_ELEMENT,
+    type: NodeTypes.Text,
     props: {
       nodeValue: text,
       children: [],
@@ -20,7 +34,7 @@ export function createTextNode(text: string): CreactNode {
   };
 }
 
-export function createElement(
+function createElement(
   type: string,
   props: Record<string, any> | null,
   ...children: (CreactNode | string)[]
@@ -36,23 +50,83 @@ export function createElement(
   };
 }
 
-export function render(el: CreactNode, container: HTMLElement) {
-  const dom =
-    el.type === TEXT_ELEMENT ? document.createTextNode("") : document.createElement(el.type);
+function workLoop(deadline: IdleDeadline) {
+  let shouldYield = false;
 
-  Object.keys(el.props).forEach((key) => {
+  while (nextUnitOfWork && !shouldYield) {
+    nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
+    shouldYield = deadline.timeRemaining() < 1;
+  }
+
+  requestIdleCallback(workLoop);
+}
+
+function createDom(type: string) {
+  return type === NodeTypes.Text ? document.createTextNode("") : document.createElement(type);
+}
+
+function updateProps(dom: HTMLElement | Text, props: CreactProps) {
+  Object.keys(props).forEach((key) => {
     if (key === "children") return;
-
     // @ts-ignore
-    dom[key] = el.props[key];
+    dom[key] = props[key];
+  });
+}
+
+function performUnitOfWork(fiber: FiberNode): FiberNode | undefined {
+  const dom = (fiber.dom = fiber.dom || createDom(fiber.type));
+
+  updateProps(dom, fiber.props);
+
+  if (fiber.parent) {
+    if (!fiber.parent.dom) throw new Error("No parent dom");
+    (fiber.parent.dom as HTMLElement).append(dom);
+  }
+
+  let prevUnitOfWork: FiberNode | undefined = undefined;
+  fiber.props.children.forEach((child, idx) => {
+    const unitOfWork: FiberNode = {
+      type: child.type,
+      props: child.props,
+      parent: fiber,
+    };
+
+    if (idx === 0) {
+      fiber.child = unitOfWork;
+    } else if (!prevUnitOfWork) {
+      throw new Error("Previous unit of work is undefined");
+    } else {
+      prevUnitOfWork.sibling = unitOfWork;
+    }
+
+    if (idx === fiber.props.children.length - 1) {
+      unitOfWork.uncle = fiber.sibling || fiber.uncle;
+    }
+
+    prevUnitOfWork = unitOfWork;
   });
 
-  const children = el.props.children;
-  children.forEach((child) => {
-    render(child, dom as HTMLElement);
-  });
+  if (fiber.child) {
+    return fiber.child;
+  }
 
-  container.append(dom);
+  if (fiber.sibling) {
+    return fiber.sibling;
+  }
+
+  return fiber.uncle;
+}
+
+export function render(el: CreactNode, container: HTMLElement) {
+  nextUnitOfWork = {
+    type: "",
+    props: {
+      children: [el],
+    },
+    dom: container,
+  };
+
+  requestIdleCallback(workLoop);
 }
 
 const Creact = {
