@@ -106,15 +106,7 @@ function performUnitOfWork(fiber: FiberNode): FiberNode | undefined {
     prevUnitOfWork = unitOfWork;
   });
 
-  if (fiber.child) {
-    return fiber.child;
-  }
-
-  if (fiber.sibling) {
-    return fiber.sibling;
-  }
-
-  return fiber.uncle;
+  return fiber.child || fiber.sibling || fiber.uncle;
 }
 
 export function render(el: CreactNode, container: HTMLElement) {
