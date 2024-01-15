@@ -4,7 +4,7 @@ export type CreactProps = {
 };
 
 export type CreactNode = {
-  type: string;
+  type: ElementType;
   props: CreactProps;
 };
 
@@ -12,8 +12,12 @@ export enum NodeTypes {
   Text = "TEXT_ELEMENT",
 }
 
+export type FC<T extends Object = any> = (props: T) => CreactNode;
+
+export type ElementType = FC | string;
+
 type FiberNode = {
-  type: string;
+  type: ElementType;
   props: CreactProps;
   parent?: FiberNode;
   child?: FiberNode;
@@ -22,6 +26,7 @@ type FiberNode = {
   dom?: HTMLElement | Text;
 };
 
+let root: FiberNode | undefined = undefined;
 let nextUnitOfWork: FiberNode | undefined = undefined;
 
 function createTextNode(text: string): CreactNode {
@@ -35,7 +40,7 @@ function createTextNode(text: string): CreactNode {
 }
 
 function createElement(
-  type: string,
+  type: ElementType,
   props: Record<string, any> | null,
   ...children: (CreactNode | string)[]
 ): CreactNode {
@@ -43,9 +48,10 @@ function createElement(
     type,
     props: {
       ...props,
-      children: children.map((child) =>
-        typeof child === "string" ? createTextNode(child) : child
-      ),
+      children: children.map((child) => {
+        const isTextNode = typeof child === "string" || typeof child === "number";
+        return isTextNode ? createTextNode(child) : child;
+      }),
     },
   };
 }
@@ -58,7 +64,32 @@ function workLoop(deadline: IdleDeadline) {
     shouldYield = deadline.timeRemaining() < 1;
   }
 
+  if (!nextUnitOfWork && root) {
+    commitRoot();
+  }
+
   requestIdleCallback(workLoop);
+}
+
+function commitRoot() {
+  commitWork(root!.child!);
+  root = undefined;
+}
+
+function commitWork(fiber: FiberNode | undefined) {
+  if (!fiber) return;
+
+  let fiberParent = fiber.parent;
+  while (fiberParent && !fiberParent.dom) {
+    fiberParent = fiberParent.parent;
+  }
+
+  if (fiber.dom) {
+    (fiberParent!.dom as HTMLElement).append(fiber.dom);
+  }
+
+  commitWork(fiber.child);
+  commitWork(fiber.sibling);
 }
 
 function createDom(type: string) {
@@ -73,17 +104,9 @@ function updateProps(dom: HTMLElement | Text, props: CreactProps) {
   });
 }
 
-function performUnitOfWork(fiber: FiberNode): FiberNode | undefined {
-  const dom = (fiber.dom = fiber.dom || createDom(fiber.type));
-
-  updateProps(dom, fiber.props);
-
-  if (fiber.parent) {
-    (fiber.parent?.dom as HTMLElement).append(dom);
-  }
-
+function initChildren(fiber: FiberNode, children: FiberNode[]) {
   let prevUnitOfWork: FiberNode | undefined = undefined;
-  fiber.props.children.forEach((child, idx) => {
+  children.forEach((child, idx) => {
     const unitOfWork: FiberNode = {
       type: child.type,
       props: child.props,
@@ -96,12 +119,33 @@ function performUnitOfWork(fiber: FiberNode): FiberNode | undefined {
       prevUnitOfWork!.sibling = unitOfWork;
     }
 
-    if (idx === fiber.props.children.length - 1) {
+    if (idx === children.length - 1) {
       unitOfWork.uncle = fiber.sibling || fiber.uncle;
     }
 
     prevUnitOfWork = unitOfWork;
   });
+}
+
+function updateFunctionComponent(fiber: FiberNode) {
+  const children = [(fiber.type as FC)(fiber.props)];
+  initChildren(fiber, children);
+}
+
+function updateHostComponent(fiber: FiberNode) {
+  const dom = (fiber.dom = fiber.dom || createDom(fiber.type as string));
+  updateProps(dom, fiber.props);
+  initChildren(fiber, fiber.props.children);
+}
+
+function performUnitOfWork(fiber: FiberNode): FiberNode | undefined {
+  const isFunctionComponent = typeof fiber.type === "function";
+
+  if (isFunctionComponent) {
+    updateFunctionComponent(fiber);
+  } else {
+    updateHostComponent(fiber);
+  }
 
   return fiber.child || fiber.sibling || fiber.uncle;
 }
@@ -115,6 +159,7 @@ export function render(el: CreactNode, container: HTMLElement) {
     dom: container,
   };
 
+  root = nextUnitOfWork;
   requestIdleCallback(workLoop);
 }
 
