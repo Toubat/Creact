@@ -160,8 +160,9 @@ export function render(el: CreactNode, container: HTMLElement) {
   };
 
   root = nextUnitOfWork;
-  requestIdleCallback(workLoop);
 }
+
+requestIdleCallback(workLoop);
 
 const Creact = {
   render,
