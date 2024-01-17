@@ -1,5 +1,16 @@
+let count = 10;
 function Counter({ num }) {
-  return <div id="counter">count: {num}</div>;
+  const handleClick = () => {
+    count++;
+    console.log(count);
+  };
+
+  return (
+    <div id="counter">
+      count: {num}
+      <button onClick={handleClick}>click</button>
+    </div>
+  );
 }
 
 function Container() {
@@ -7,7 +18,6 @@ function Container() {
     <div>
       container
       <Counter num={10} />
-      <Counter num={20} />
     </div>
   );
 }
@@ -16,8 +26,6 @@ const App = () => {
   return (
     <div id="1">
       <div id="2">hi</div>
-      <Container />
-      <Container />
       <Container />
       <div id="3">
         <div id="4" />

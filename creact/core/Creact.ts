@@ -99,8 +99,14 @@ function createDom(type: string) {
 function updateProps(dom: HTMLElement | Text, props: CreactProps) {
   Object.keys(props).forEach((key) => {
     if (key === "children") return;
-    // @ts-ignore
-    dom[key] = props[key];
+
+    if (key.startsWith("on")) {
+      const eventType = key.slice(2).toLowerCase();
+      dom.addEventListener(eventType, props[key]);
+    } else {
+      // @ts-ignore
+      dom[key] = props[key];
+    }
   });
 }
 
