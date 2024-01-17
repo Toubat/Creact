@@ -81,10 +81,6 @@ function workLoop(deadline: IdleDeadline) {
 }
 
 function commitRoot() {
-  if (wipRoot?.alternate) {
-    // debugger;
-  }
-
   commitWork(wipRoot!.child!);
   currRoot = wipRoot;
   wipRoot = undefined;
@@ -199,10 +195,6 @@ function updateHostComponent(fiber: FiberNode) {
 }
 
 function performUnitOfWork(fiber: FiberNode): FiberNode | undefined {
-  if (fiber.alternate) {
-    // debugger;
-  }
-
   const isFunctionComponent = typeof fiber.type === "function";
 
   if (isFunctionComponent) {
