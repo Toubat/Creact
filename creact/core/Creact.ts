@@ -142,25 +142,26 @@ function updateProps(
 }
 
 function reconcileChildren(fiber: FiberNode, children: CreactNode[]) {
-  let prevFiber: FiberNode | undefined = fiber.alternate?.child;
-  let prevUnitOfWork: FiberNode | undefined = undefined;
+  let oldFiber: FiberNode | undefined = fiber.alternate?.child;
+  let prevChildFiber: FiberNode | undefined = undefined;
 
   children.forEach((child, idx) => {
-    let unitOfWork: FiberNode;
+    let newFiber: FiberNode;
+    const isSameType = oldFiber && oldFiber.type === child.type;
 
-    if (prevFiber && prevFiber.type === child.type) {
+    if (isSameType) {
       // tag is the same, reuse old dom
-      unitOfWork = {
+      newFiber = {
         type: child.type,
         props: child.props,
         parent: fiber,
-        dom: prevFiber.dom,
-        alternate: prevFiber,
+        dom: oldFiber?.dom,
+        alternate: oldFiber,
         effectTag: EffectTags.Update,
       };
     } else {
       // tag is different, create new dom
-      unitOfWork = {
+      newFiber = {
         type: child.type,
         props: child.props,
         parent: fiber,
@@ -169,17 +170,17 @@ function reconcileChildren(fiber: FiberNode, children: CreactNode[]) {
     }
 
     if (idx === 0) {
-      fiber.child = unitOfWork;
+      fiber.child = newFiber;
     } else {
-      prevUnitOfWork!.sibling = unitOfWork;
+      prevChildFiber!.sibling = newFiber;
     }
 
     if (idx === children.length - 1) {
-      unitOfWork.uncle = fiber.sibling || fiber.uncle;
+      newFiber.uncle = fiber.sibling || fiber.uncle;
     }
 
-    prevUnitOfWork = unitOfWork;
-    prevFiber = prevFiber?.sibling;
+    prevChildFiber = newFiber;
+    oldFiber = oldFiber?.sibling;
   });
 }
 
