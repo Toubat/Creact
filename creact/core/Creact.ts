@@ -12,6 +12,12 @@ export enum NodeTypes {
   Text = "TEXT_ELEMENT",
 }
 
+export enum EffectTags {
+  Placement = "PLACEMENT",
+  Update = "UPDATE",
+  Deletion = "DELETION",
+}
+
 export type FC<T extends Object = any> = (props: T) => CreactNode;
 
 export type ElementType = FC | string;
@@ -24,9 +30,12 @@ type FiberNode = {
   sibling?: FiberNode;
   uncle?: FiberNode;
   dom?: HTMLElement | Text;
+  alternate?: FiberNode;
+  effectTag: EffectTags;
 };
 
-let root: FiberNode | undefined = undefined;
+let wipRoot: FiberNode | undefined = undefined;
+let currRoot: FiberNode | undefined = undefined;
 let nextUnitOfWork: FiberNode | undefined = undefined;
 
 function createTextNode(text: string): CreactNode {
@@ -64,7 +73,7 @@ function workLoop(deadline: IdleDeadline) {
     shouldYield = deadline.timeRemaining() < 1;
   }
 
-  if (!nextUnitOfWork && root) {
+  if (!nextUnitOfWork && wipRoot) {
     commitRoot();
   }
 
@@ -72,8 +81,13 @@ function workLoop(deadline: IdleDeadline) {
 }
 
 function commitRoot() {
-  commitWork(root!.child!);
-  root = undefined;
+  if (wipRoot?.alternate) {
+    // debugger;
+  }
+
+  commitWork(wipRoot!.child!);
+  currRoot = wipRoot;
+  wipRoot = undefined;
 }
 
 function commitWork(fiber: FiberNode | undefined) {
@@ -84,8 +98,8 @@ function commitWork(fiber: FiberNode | undefined) {
     fiberParent = fiberParent.parent;
   }
 
-  if (fiber.dom) {
-    (fiberParent!.dom as HTMLElement).append(fiber.dom);
+  if (fiber.effectTag === EffectTags.Placement) {
+    fiber.dom && (fiberParent!.dom as HTMLElement).append(fiber.dom);
   }
 
   commitWork(fiber.child);
@@ -96,28 +110,67 @@ function createDom(type: string) {
   return type === NodeTypes.Text ? document.createTextNode("") : document.createElement(type);
 }
 
-function updateProps(dom: HTMLElement | Text, props: CreactProps) {
-  Object.keys(props).forEach((key) => {
+function updateProps(
+  dom: HTMLElement | Text,
+  nextProps: CreactProps,
+  prevProps: CreactProps | undefined
+) {
+  prevProps = prevProps || { children: [] };
+
+  // delete old props
+  Object.keys(prevProps).forEach((key) => {
     if (key === "children") return;
+    if (key in nextProps) return;
 
     if (key.startsWith("on")) {
       const eventType = key.slice(2).toLowerCase();
-      dom.addEventListener(eventType, props[key]);
+      dom.removeEventListener(eventType, prevProps![key]);
     } else {
-      // @ts-ignore
-      dom[key] = props[key];
+      (dom as HTMLElement).removeAttribute(key);
+    }
+  });
+
+  // upsert new props
+  Object.keys(nextProps).forEach((key) => {
+    if (key === "children") return;
+    if (prevProps![key] === nextProps[key]) return;
+
+    if (key.startsWith("on")) {
+      const eventType = key.slice(2).toLowerCase();
+      dom.removeEventListener(eventType, prevProps![key]);
+      dom.addEventListener(eventType, nextProps[key]);
+    } else {
+      dom[key] = nextProps[key];
     }
   });
 }
 
-function initChildren(fiber: FiberNode, children: FiberNode[]) {
+function reconcileChildren(fiber: FiberNode, children: CreactNode[]) {
+  let prevFiber: FiberNode | undefined = fiber.alternate?.child;
   let prevUnitOfWork: FiberNode | undefined = undefined;
+
   children.forEach((child, idx) => {
-    const unitOfWork: FiberNode = {
-      type: child.type,
-      props: child.props,
-      parent: fiber,
-    };
+    let unitOfWork: FiberNode;
+
+    if (prevFiber && prevFiber.type === child.type) {
+      // tag is the same, reuse old dom
+      unitOfWork = {
+        type: child.type,
+        props: child.props,
+        parent: fiber,
+        dom: prevFiber.dom,
+        alternate: prevFiber,
+        effectTag: EffectTags.Update,
+      };
+    } else {
+      // tag is different, create new dom
+      unitOfWork = {
+        type: child.type,
+        props: child.props,
+        parent: fiber,
+        effectTag: EffectTags.Placement,
+      };
+    }
 
     if (idx === 0) {
       fiber.child = unitOfWork;
@@ -130,21 +183,26 @@ function initChildren(fiber: FiberNode, children: FiberNode[]) {
     }
 
     prevUnitOfWork = unitOfWork;
+    prevFiber = prevFiber?.sibling;
   });
 }
 
 function updateFunctionComponent(fiber: FiberNode) {
   const children = [(fiber.type as FC)(fiber.props)];
-  initChildren(fiber, children);
+  reconcileChildren(fiber, children);
 }
 
 function updateHostComponent(fiber: FiberNode) {
   const dom = (fiber.dom = fiber.dom || createDom(fiber.type as string));
-  updateProps(dom, fiber.props);
-  initChildren(fiber, fiber.props.children);
+  updateProps(dom, fiber.props, fiber.alternate?.props);
+  reconcileChildren(fiber, fiber.props.children);
 }
 
 function performUnitOfWork(fiber: FiberNode): FiberNode | undefined {
+  if (fiber.alternate) {
+    // debugger;
+  }
+
   const isFunctionComponent = typeof fiber.type === "function";
 
   if (isFunctionComponent) {
@@ -156,22 +214,41 @@ function performUnitOfWork(fiber: FiberNode): FiberNode | undefined {
   return fiber.child || fiber.sibling || fiber.uncle;
 }
 
+function submitRootWork(fiber: FiberNode) {
+  wipRoot = fiber;
+  nextUnitOfWork = wipRoot;
+}
+
 export function render(el: CreactNode, container: HTMLElement) {
-  nextUnitOfWork = {
+  submitRootWork({
     type: "",
     props: {
       children: [el],
     },
     dom: container,
-  };
+    effectTag: EffectTags.Placement,
+  });
+}
 
-  root = nextUnitOfWork;
+export function update() {
+  if (!currRoot) {
+    throw new Error("Root is not initialized");
+  }
+
+  submitRootWork({
+    type: currRoot.type,
+    props: currRoot.props,
+    dom: currRoot.dom,
+    alternate: currRoot,
+    effectTag: EffectTags.Update,
+  });
 }
 
 requestIdleCallback(workLoop);
 
 const Creact = {
   render,
+  update,
   createElement,
 };
 

@@ -1,23 +1,42 @@
+import { update } from "./core/creact";
+
 let count = 10;
+let defaultProps = { style: "color: orange" };
+let props: any = {};
+
 function Counter({ num }) {
   const handleClick = () => {
     count++;
-    console.log(count);
+    props = count % 2 === 0 ? {} : defaultProps;
+    update();
   };
 
   return (
     <div id="counter">
-      count: {num}
-      <button onClick={handleClick}>click</button>
+      <div>parent count: {num}</div>
+      <div>my count: {count}</div>
+      <button onClick={handleClick} {...props}>
+        increment my count
+      </button>
     </div>
   );
 }
 
+let containerCount = 1;
+
 function Container() {
+  const handleClick = () => {
+    containerCount++;
+    update();
+  };
+
   return (
-    <div>
-      container
-      <Counter num={10} />
+    <div
+      id={`count-${containerCount}`}
+      style={containerCount % 2 === 0 ? "color: red" : "color: green"}
+    >
+      <button onClick={handleClick}>container</button>
+      <Counter num={containerCount} />
     </div>
   );
 }
@@ -46,7 +65,7 @@ const App = () => {
           </div>
         </div>
       </div>
-      <div id="9" />
+      <div id="9">bottom</div>
     </div>
   );
 };
